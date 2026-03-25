@@ -1,83 +1,77 @@
-import hashlib
-from typing import List, Dict, Any
-from dataclasses import dataclass
-from time import time
-import asyncio
-
-@dataclass
-class Message:
-    sender_id: str
-    payload: Any
-    timestamp: float
-    signature: str
+import numpy as np
+from typing import List, Tuple
 
 class SwarmNode:
-    def __init__(self, node_id: str, private_key: str):
+    def __init__(self, node_id: int, location: Tuple[float, float]):
         self.node_id = node_id
-        self.private_key = private_key
-        self.peers: List[str] = []
-        self.message_pool: Dict[str, Message] = {}
-        self.consensus_threshold = 0.67  # 2/3 majority for Byzantine fault tolerance
-        
-    def sign_message(self, payload: Any) -> Message:
-        timestamp = time()
-        message_data = f"{self.node_id}{payload}{timestamp}"
-        signature = hashlib.sha256(
-            f"{message_data}{self.private_key}".encode()
-        ).hexdigest()
-        return Message(
-            sender_id=self.node_id,
-            payload=payload,
-            timestamp=timestamp,
-            signature=signature
-        )
-    
-    async def broadcast_message(self, message: Message) -> None:
-        self.message_pool[message.signature] = message
-        # Simulate network broadcast to peers
-        for peer_id in self.peers:
-            await self.send_to_peer(peer_id, message)
-    
-    async def send_to_peer(self, peer_id: str, message: Message) -> None:
-        # Implement actual peer communication logic here
-        pass
-    
-    def verify_message(self, message: Message) -> bool:
-        message_data = f"{message.sender_id}{message.payload}{message.timestamp}"
-        # In practice, would verify using sender's public key
-        return len(message.signature) == 64  # Simple check for demo
-    
-    async def process_message(self, message: Message) -> None:
-        if not self.verify_message(message):
-            return
-            
-        self.message_pool[message.signature] = message
-        
-        # Check for consensus
-        consensus = await self.check_consensus(message)
-        if consensus:
-            await self.execute_consensus_action(message.payload)
-    
-    async def check_consensus(self, message: Message) -> bool:
-        matching_messages = [
-            msg for msg in self.message_pool.values()
-            if msg.payload == message.payload
-        ]
-        return len(matching_messages) >= len(self.peers) * self.consensus_threshold
-    
-    async def execute_consensus_action(self, payload: Any) -> None:
-        # Implement consensus-reached actions here
-        print(f"Consensus reached for payload: {payload}")
-    
-    async def run(self):
+        self.location = location
+        self.task_queue = []
+        self.available_capacity = 100
+
+    def add_task(self, task: dict):
+        self.task_queue.append(task)
+        self.available_capacity -= task['resource_requirement']
+
+    def process_tasks(self):
+        while self.task_queue:
+            task = self.task_queue.pop(0)
+            # Simulate processing the task
+            print(f'Node {self.node_id} processing task: {task}')
+            self.available_capacity += task['resource_requirement']
+
+    def update_location(self, new_location: Tuple[float, float]):
+        self.location = new_location
+
+class AdaptiveSwarmIntelligence:
+    def __init__(self, nodes: List[SwarmNode]):
+        self.nodes = nodes
+
+    def allocate_tasks(self, tasks: List[dict]):
+        # Sort tasks by resource requirement in descending order
+        tasks.sort(key=lambda x: x['resource_requirement'], reverse=True)
+
+        # Allocate tasks to nodes
+        for task in tasks:
+            # Find the node with the most available capacity
+            best_node = max(self.nodes, key=lambda x: x.available_capacity)
+            if best_node.available_capacity >= task['resource_requirement']:
+                best_node.add_task(task)
+            else:
+                # If no node has enough capacity, store the task in a queue
+                print(f'Task {task} could not be allocated, added to queue.')
+
+    def update_node_locations(self):
+        # Update node locations based on some algorithm
+        for node in self.nodes:
+            new_location = (
+                node.location[0] + np.random.uniform(-1, 1),
+                node.location[1] + np.random.uniform(-1, 1)
+            )
+            node.update_location(new_location)
+
+    def run(self):
         while True:
-            # Main node operation loop
-            await asyncio.sleep(1)
+            # Receive new tasks
+            new_tasks = [
+                {'id': 1, 'resource_requirement': 20},
+                {'id': 2, 'resource_requirement': 30},
+                {'id': 3, 'resource_requirement': 40},
+            ]
 
-    def add_peer(self, peer_id: str) -> None:
-        if peer_id not in self.peers:
-            self.peers.append(peer_id)
+            self.allocate_tasks(new_tasks)
 
-    def remove_peer(self, peer_id: str) -> None:
-        if peer_id in self.peers:
-            self.peers.remove(peer_id)
+            # Process tasks on each node
+            for node in self.nodes:
+                node.process_tasks()
+
+            self.update_node_locations()
+
+if __name__ == '__main__':
+    nodes = [
+        SwarmNode(1, (0, 0)),
+        SwarmNode(2, (10, 10)),
+        SwarmNode(3, (20, 20)),
+    ]
+
+    swarm = AdaptiveSwarmIntelligence(nodes)
+    swarm.run()
